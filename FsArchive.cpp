@@ -1228,11 +1228,9 @@ bool FsArchive::verify()
 			qWarning() << "FsArchive::verify io error" << fs.errorString();
 			return false;
 		}
-
 		if(size > 4478885) {
 			qWarning() << "FsArchive::verify strange size" << size;
 		}
-
 		if(guessPos != info->position()) {
 			qWarning() << "FsArchive::verify ko" << info->position() << guessPos << size << info->uncompressed_size() << info->isCompressed();
 		} else {
@@ -1240,7 +1238,6 @@ bool FsArchive::verify()
 		}
 		guessPos += size;
 	}
-
 	return true;
 }
 
@@ -1330,7 +1327,6 @@ bool FsArchive::repair(FsArchive *other)
 		}
 		if(guessPos != info->position()) {
 			info->setPosition(guessPos);
-
 			changePositions(info, guessPos - info->position());
 		}
 		guessPos += size;
