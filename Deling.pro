@@ -21,6 +21,7 @@ lessThan(QT_MAJOR_VERSION, 5) {
 # Input
 HEADERS += MainWindow.h \
     PreviewWidget.h \
+    game/worldmap/WmEncounter.h \
     parameters.h \
     Data.h \
     Config.h \
@@ -118,6 +119,7 @@ HEADERS += MainWindow.h \
 
 SOURCES += MainWindow.cpp \
     PreviewWidget.cpp \
+    game/worldmap/WmEncounter.cpp \
     main.cpp \
     Data.cpp \
     Config.cpp \
