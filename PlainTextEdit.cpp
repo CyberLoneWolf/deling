@@ -17,6 +17,14 @@
  ****************************************************************************/
 #include "PlainTextEdit.h"
 
+#if (QT_VERSION < QT_VERSION_CHECK(5, 10, 0))
+#	define setTabStopDistance setTabStopWidth
+#endif
+
+#if (QT_VERSION < QT_VERSION_CHECK(5, 11, 0))
+#	define horizontalAdvance width
+#endif
+
 PlainTextEditPriv::PlainTextEditPriv(QWidget *parent) :
     QPlainTextEdit(parent), _previousLineHovered(-1)
 {
@@ -46,6 +54,8 @@ void PlainTextEditPriv::mouseMoveEvent(QMouseEvent *event)
 
 		emit lineHovered(currentBlock.text(), QPoint(margin, event->pos().y() + i + margin));
 	}
+
+	QPlainTextEdit::mouseMoveEvent(event);
 }
 
 PlainTextEdit::PlainTextEdit(QWidget *parent) :
@@ -53,7 +63,7 @@ PlainTextEdit::PlainTextEdit(QWidget *parent) :
 {
 	_textEdit = new PlainTextEditPriv(parent);
 	_textEdit->viewport()->installEventFilter(this);
-	_textEdit->setTabStopWidth(30);
+	_textEdit->setTabStopDistance(30.0);
 	_textEdit->setLineWrapMode(QPlainTextEdit::NoWrap);
 	_textEdit->setMouseTracking(true);
 }
@@ -61,7 +71,7 @@ PlainTextEdit::PlainTextEdit(QWidget *parent) :
 QSize PlainTextEdit::sizeHint() const
 {
 	return QSize(_textEdit->fontMetrics()
-	             .width(QString::number(_textEdit->document()->blockCount()))
+	             .horizontalAdvance(QString::number(_textEdit->document()->blockCount()))
 	             + 4,
 	             _textEdit->height());
 }
@@ -75,7 +85,7 @@ bool PlainTextEdit::eventFilter(QObject *obj, QEvent *event)
 {
 	if (event->type() == QEvent::Paint) {
 		setFixedHeight(_textEdit->height());
-		setFixedWidth(_textEdit->fontMetrics().width(QString::number(_textEdit->document()->blockCount())) + 4);
+		setFixedWidth(_textEdit->fontMetrics().horizontalAdvance(QString::number(_textEdit->document()->blockCount())) + 4);
 		update();
 	}
 
@@ -116,7 +126,7 @@ void PlainTextEdit::paintEvent(QPaintEvent *event)
 			painter.setFont(font);
 		}
 
-		painter.drawText(width() - fontMetrics.width(QString::number(line)) - 3, y, QString::number(line));
+		painter.drawText(width() - fontMetrics.horizontalAdvance(QString::number(line)) - 3, y, QString::number(line));
 		y += _textEdit->document()->documentLayout()->blockBoundingRect(block).height();
 
 		if(block == currentBlock) {

@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
 	}
 
 	if(!FF8Font::listFonts()) {
-		QMessageBox::critical(0, QObject::tr("Chargement des données"), QObject::tr("Les polices de caractères n'ont pas pu être chargées !"));
+		QMessageBox::critical(nullptr, QObject::tr("Chargement des données"), QObject::tr("Les polices de caractères n'ont pas pu être chargées !"));
 		return -1;
 	}
 
@@ -172,5 +172,5 @@ int main(int argc, char *argv[])
 	                      "C:\\ff8\\Data\\fre\\world\\dat\\wmx.obj", &pw);
 	*/
 
-    return app.exec();
+	return app.exec();
 }

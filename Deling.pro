@@ -20,8 +20,11 @@ lessThan(QT_MAJOR_VERSION, 5) {
 
 # Input
 HEADERS += MainWindow.h \
+    EncounterExporter.h \
     PreviewWidget.h \
     game/worldmap/WmEncounter.h \
+    QLZ4.h \
+    ScriptExporter.h \
     parameters.h \
     Data.h \
     Config.h \
@@ -118,8 +121,11 @@ HEADERS += MainWindow.h \
     game/worldmap/WmsetFile.h
 
 SOURCES += MainWindow.cpp \
+    EncounterExporter.cpp \
     PreviewWidget.cpp \
     game/worldmap/WmEncounter.cpp \
+    QLZ4.cpp \
+    ScriptExporter.cpp \
     main.cpp \
     Data.cpp \
     Config.cpp \
@@ -236,6 +242,19 @@ RESOURCES += Deling.qrc
             LIBS += -lz
         }
     }
+}
+
+# include lz4
+!win32 {
+    macos {
+        INCLUDEPATH += /usr/local/include
+        LIBS += -L/usr/local/lib
+    }
+
+    LIBS += -llz4
+} else {
+    INCLUDEPATH += lz4
+    LIBS += $$_PRO_FILE_PWD_/lz4/liblz4.lib
 }
 
 win32 {

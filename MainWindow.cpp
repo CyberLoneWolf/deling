@@ -20,10 +20,13 @@
 #include "Config.h"
 #include "Data.h"
 #include "ProgressWidget.h"
+#include "ScriptExporter.h"
+#include "EncounterExporter.h"
 
 MainWindow::MainWindow()
-	: fieldArchive(NULL), field(NULL), currentField(0),
-	  fieldThread(new FieldThread), file(0), fsDialog(0), _varManager(NULL), firstShow(true)
+    : fieldArchive(nullptr), field(nullptr), currentField(nullptr),
+      fieldThread(new FieldThread), file(nullptr), menuGameLang(nullptr),
+      fsDialog(nullptr), _varManager(nullptr), firstShow(true)
 {
 	QFont font;
 	font.setPointSize(8);
@@ -43,9 +46,14 @@ MainWindow::MainWindow()
 	QMenu *menu = menuBar->addMenu(tr("&Fichier"));
 
 	QAction *actionOpen = menu->addAction(QApplication::style()->standardIcon(QStyle::SP_DialogOpenButton), tr("&Ouvrir..."), this, SLOT(openFile()), QKeySequence::Open);
+	actionGameLang = menu->addAction(tr("Changer la langue du jeu"));
+	actionGameLang->setVisible(false);
 	actionSave = menu->addAction(QApplication::style()->standardIcon(QStyle::SP_DialogSaveButton), tr("Enregi&strer"), this, SLOT(save()), QKeySequence::Save);
 	actionSaveAs = menu->addAction(tr("Enre&gistrer Sous..."), this, SLOT(saveAs()), QKeySequence::SaveAs);
 	actionExport = menu->addAction(tr("Exporter..."), this, SLOT(exportCurrent()));
+	menuExportAll = menu->addMenu(tr("Exporter tout"));
+	menuExportAll->addAction(tr("Scripts..."), this, SLOT(exportAllScripts()));
+	menuExportAll->addAction(tr("Rencontres aléatoires..."), this, SLOT(exportAllEncounters()));
 	actionImport = menu->addAction(tr("Importer..."), this, SLOT(importCurrent()));
 	actionOpti = menu->addAction(tr("Optimiser l'archive..."), this, SLOT(optimizeArchive()));
 	menu->addSeparator();
@@ -56,10 +64,10 @@ MainWindow::MainWindow()
 	menu = menuBar->addMenu(tr("&Outils"));
 	actionFind = menu->addAction(QIcon(":/images/find.png"), tr("Rec&hercher..."), this, SLOT(search()), QKeySequence::Find);
 	menu->addAction(tr("&Var manager..."), this, SLOT(varManager()));
-//	menu->addAction(tr("&Rechercher tout..."), this, SLOT(miscSearch()));
+	//menu->addAction(tr("&Rechercher tout..."), this, SLOT(miscSearch()));
 	actionRun = menu->addAction(QIcon(":/images/ff8.png"), tr("&Lancer FF8..."), this, SLOT(runFF8()), Qt::Key_F8);
 	actionRun->setShortcutContext(Qt::ApplicationShortcut);
-    actionRun->setEnabled(Data::ff8Found());
+	actionRun->setEnabled(Data::ff8Found());
 	addAction(actionRun);
 	menuBar->addAction(tr("Op&tions"), this, SLOT(configDialog()));
 
@@ -74,6 +82,7 @@ MainWindow::MainWindow()
 	toolBar->addSeparator();
 	toolBar->addAction(actionFind);
 	toolBar->addAction(actionRun);
+	toolBar->addAction(actionGameLang);
 
 	list1 = new QTreeWidget();
 	list1->setHeaderLabels(QStringList() << tr("Fichier") << tr("Description") << tr("#"));
@@ -118,7 +127,7 @@ MainWindow::MainWindow()
 	tabBarLayout->setContentsMargins(QMargins());
 	toolBar->addSeparator();
 	toolBar->addWidget(tabBarWidget);
-	Qt::ToolBarArea toolbarArea = (Qt::ToolBarArea)Config::value("toolbarArea", Qt::TopToolBarArea).toInt();
+	Qt::ToolBarArea toolbarArea = Qt::ToolBarArea(Config::value("toolbarArea", Qt::TopToolBarArea).toInt());
 	if(toolbarArea!=Qt::LeftToolBarArea
 			&& toolbarArea!=Qt::RightToolBarArea
 			&& toolbarArea!=Qt::TopToolBarArea
@@ -188,7 +197,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
 		Config::setValue("list1ColumnSort", list1->sortColumn());
 		Config::setValue("currentPage", stackedWidget->currentIndex());
 		if(!FF8Font::saveFonts()) {
-			QMessageBox::critical(0, QObject::tr("Enregistrement des données"), QObject::tr("Les polices de caractères n'ont pas pu être enregistrées !"));
+			QMessageBox::critical(nullptr, QObject::tr("Enregistrement des données"), QObject::tr("Les polices de caractères n'ont pas pu être enregistrées !"));
 		}
 		event->accept();
 	}
@@ -198,6 +207,22 @@ void MainWindow::fullScreen()
 {
 	if(isFullScreen())	showNormal();
 	else				showFullScreen();
+}
+
+void MainWindow::setGameLang(QAction *action)
+{
+	QString path;
+
+	Config::setValue("gameLang", action->text());
+
+	if(fieldArchive != nullptr && actionOpti->isEnabled()) {
+		path = ((FieldArchivePC *)fieldArchive)->getFsArchive()->path();
+	} else if(field != nullptr) {
+		path = field->path();
+	}
+
+	closeFiles();
+	openFsArchive(path);
 }
 
 void MainWindow::filterMap()
@@ -210,7 +235,7 @@ void MainWindow::filterMap()
 bool MainWindow::openArchive(const QString &path)
 {
 	searchDialog->setFieldArchive(fieldArchive);
-	if(_varManager != NULL)
+	if(_varManager != nullptr)
 		_varManager->setFieldArchive(fieldArchive);
 
 	ProgressWidget progress(tr("Ouverture..."), ProgressWidget::Cancel, this);
@@ -257,6 +282,7 @@ bool MainWindow::openArchive(const QString &path)
 		list1->resizeColumnToContents(2);
 
 		actionExport->setEnabled(true);
+		menuExportAll->setEnabled(true);
 
 		((CharaWidget *)pageWidgets.at(ModelPage))->setMainModels(fieldArchive->getModels());
 		((JsmWidget *)pageWidgets.at(ScriptPage))->setMainModels(fieldArchive->getModels());
@@ -282,24 +308,27 @@ bool MainWindow::openFsArchive(const QString &path)
 {
 //	qDebug() << QString("MainWindow::openFsArchive(%1)").arg(path);
 
-	fieldArchive = new FieldArchivePC();
+	FieldArchivePC *fieldArchivePc = new FieldArchivePC();
+	fieldArchive = fieldArchivePc;
 	openArchive(path);
 
 	if(fieldArchive->nbFields() > 0) {
 		actionOpti->setEnabled(true);
 		actionSaveAs->setEnabled(true);
+		buildGameLangMenu(fieldArchivePc->languages());
 	} else {
-		field = new FieldPC(path);
+		field = new FieldPC(path, Config::value("gameLang", "en").toString());
 		if(field->hasFiles()) {
 			delete fieldArchive;
-			fieldArchive = NULL;
+			fieldArchive = nullptr;
 			list1->setEnabled(false);
 			lineSearch->setEnabled(false);
 			bgPreview->setEnabled(true);
+			buildGameLangMenu(field->languages());
 			fillPage();
 		} else {
 			delete field;
-			field = NULL;
+			field = nullptr;
 			manageArchive();
 			actionSaveAs->setEnabled(false);
 		}
@@ -360,7 +389,27 @@ void MainWindow::setReadOnly(bool readOnly)
 	foreach(PageWidget *pageWidget, pageWidgets)
 		pageWidget->setReadOnly(readOnly);
 
-    actionImport->setDisabled(readOnly);
+	actionImport->setDisabled(readOnly);
+}
+
+void MainWindow::buildGameLangMenu(const QStringList &langs)
+{
+	if(!menuGameLang) {
+		menuGameLang = new QMenu();
+		actionGameLang->setMenu(menuGameLang);
+		connect(menuGameLang, SIGNAL(triggered(QAction*)), SLOT(setGameLang(QAction*)));
+	}
+
+	actionGameLang->setVisible(!langs.empty());
+	menuGameLang->clear();
+
+	QString currentLang = Config::value("gameLang", "en").toString();
+
+	foreach(const QString &lang, langs) {
+		QAction *action = menuGameLang->addAction(lang);
+		action->setCheckable(true);
+		action->setChecked(lang == currentLang);
+	}
 }
 
 bool MainWindow::openIsoArchive(const QString &path)
@@ -379,19 +428,19 @@ void MainWindow::fillPage()
 
 	QTime t;t.start();
 
-	if(this->field != NULL) {
+	if(this->field != nullptr) {
 		currentField = this->field;
 
 		this->field->open2();
 	} else {
 		QTreeWidgetItem *item = list1->currentItem();
-		if(item==NULL)	return;
+		if(item==nullptr)	return;
 		list1->scrollToItem(item);
-		if(fieldArchive==NULL)	return;
+		if(fieldArchive==nullptr)	return;
 
 		int fieldID = item->data(0, Qt::UserRole).toInt();
 		currentField = fieldArchive->getField(fieldID);
-		if(currentField == NULL)	return;
+		if(currentField == nullptr)	return;
 
 		emit fieldIdChanged(fieldID);
 
@@ -446,10 +495,10 @@ int MainWindow::closeFiles(bool quit)
 {
 	//qDebug() << "MainWindow::closeFiles()";
 
-	if(list1->currentItem() != NULL)
+	if(list1->currentItem() != nullptr)
 		Config::setValue("currentField", list1->currentItem()->text(0));
 
-	if(actionSave->isEnabled() && fieldArchive!=NULL)
+	if(actionSave->isEnabled() && fieldArchive!=nullptr)
 	{
 		int reponse = QMessageBox::warning(this, tr("Sauvegarder"), tr("Voulez-vous enregistrer les changements de %1 ?").arg(fieldArchive->archivePath()), tr("Oui"), tr("Non"), tr("Annuler"));
 		if(reponse == 0)				save();
@@ -464,40 +513,42 @@ int MainWindow::closeFiles(bool quit)
 	setModified(false);
 	actionSaveAs->setEnabled(false);
 	actionExport->setEnabled(false);
+	menuExportAll->setEnabled(false);
 	actionImport->setEnabled(false);
 	actionOpti->setEnabled(false);
 	tabBar->setTabEnabled(tabBar->count()-1, false);
 	actionClose->setEnabled(false);
 	bgPreview->clear();
 	bgPreview->setEnabled(false);
+	actionGameLang->setVisible(false);
 	foreach(PageWidget *pageWidget, pageWidgets) {
 		pageWidget->clear();
 		pageWidget->cleanData();
 	}
-	((CharaWidget *)pageWidgets.at(ModelPage))->setMainModels(0);
-	((JsmWidget *)pageWidgets.at(ScriptPage))->setMainModels(0);
+	((CharaWidget *)pageWidgets.at(ModelPage))->setMainModels(nullptr);
+	((JsmWidget *)pageWidgets.at(ScriptPage))->setMainModels(nullptr);
 	currentPath->setText(QString());
 	setReadOnly(false);
 
-	searchDialog->setFieldArchive(NULL);
-	if(_varManager != NULL)		_varManager->setFieldArchive(NULL);
+	searchDialog->setFieldArchive(nullptr);
+	if(_varManager != nullptr)		_varManager->setFieldArchive(nullptr);
 
 	if(fsDialog) {
 		mainStackedWidget->removeWidget(fsDialog);
 		fsDialog->deleteLater();
-		fsDialog = 0;
+		fsDialog = nullptr;
 	}
 
-	currentField = 0;
+	currentField = nullptr;
 
-	if(fieldArchive!=NULL) {
+	if(fieldArchive!=nullptr) {
 		delete fieldArchive;
-		fieldArchive = NULL;
-		field = NULL;
+		fieldArchive = nullptr;
+		field = nullptr;
 	}
-	if(field!=NULL) {
+	if(field!=nullptr) {
 		delete field;
-		field = NULL;
+		field = nullptr;
 	}
 
 	setWindowTitle("[*]"%PROG_FULLNAME);
@@ -549,14 +600,14 @@ void MainWindow::openFile(QString path)
 
 void MainWindow::save()
 {
-	if(fieldArchive == NULL && (field == NULL || !field->isOpen()))	return;
+	if(fieldArchive == nullptr && (field == nullptr || !field->isOpen()))	return;
 
-	saveAs(fieldArchive != NULL ? fieldArchive->archivePath() : field->getArchiveHeader()->path());
+	saveAs(fieldArchive != nullptr ? fieldArchive->archivePath() : field->getArchiveHeader()->path());
 }
 
 void MainWindow::saveAs(QString path)
 {
-	if(fieldArchive == NULL && (field == NULL || !field->isOpen()))	return;
+	if(fieldArchive == nullptr && (field == nullptr || !field->isOpen()))	return;
 
 	/* int errorFieldID, errorGroupID, errorMethodID, errorLine;
 	QString errorStr;
@@ -575,14 +626,14 @@ void MainWindow::saveAs(QString path)
 
 	if(path.isEmpty())
 	{
-		path = fieldArchive != NULL ? fieldArchive->archivePath() : field->getArchiveHeader()->path();
+		path = fieldArchive != nullptr ? fieldArchive->archivePath() : field->getArchiveHeader()->path();
 		path = QFileDialog::getSaveFileName(this, tr("Enregistrer Sous"), path, tr("Archive FS (*.fs)"));
 		if(path.isNull())		return;
 	}
 
 	bool ok = true;
 
-	if(fieldArchive != NULL) {
+	if(fieldArchive != nullptr) {
 		ProgressWidget progress(tr("Enregistrement..."), ProgressWidget::Cancel, this);
 
 		ok = ((FieldArchivePC *)fieldArchive)->save(&progress, path);
@@ -604,7 +655,7 @@ void MainWindow::exportCurrent()
 {
     if(!currentField)	return;
 
-	QString path = fieldArchive != NULL ? fieldArchive->archivePath() : field->path();
+	QString path = fieldArchive != nullptr ? fieldArchive->archivePath() : field->path();
 	QStringList filter;
 	QList<int> typeList;
 
@@ -651,8 +702,8 @@ void MainWindow::exportCurrent()
 			}
 		}
 		else {
-			if(currentField->hasFile((Field::FileType)i)) {
-				filter.append(currentField->getFile((Field::FileType)i)->filterText());
+			if(currentField->hasFile(Field::FileType(i))) {
+				filter.append(currentField->getFile(Field::FileType(i))->filterText());
 				typeList.append(i);
 			}
 		}
@@ -676,9 +727,53 @@ void MainWindow::exportCurrent()
 		}
 		break;
 	default:
-		if(!currentField->getFile((Field::FileType)type)->toFile(path)) {
-			QMessageBox::warning(this, tr("Erreur"), currentField->getFile((Field::FileType)type)->errorString());
+		if(!currentField->getFile(Field::FileType(type))->toFile(path)) {
+			QMessageBox::warning(this, tr("Erreur"), currentField->getFile(Field::FileType(type))->errorString());
 		}
+	}
+}
+
+void MainWindow::exportAllScripts()
+{
+	if(!fieldArchive)	return;
+
+	QString oldPath = Config::value("export_path").toString();
+
+	QString dirPath = QFileDialog::getExistingDirectory(this, tr("Exporter"), oldPath);
+	if (dirPath.isNull()) {
+		return;
+	}
+
+	Config::setValue("export_path", dirPath);
+
+	ProgressWidget progress(tr("Export..."), ProgressWidget::Cancel, this);
+
+	ScriptExporter exporter(fieldArchive);
+
+	if (!exporter.toDir(dirPath, &progress) && !progress.observerWasCanceled()) {
+		QMessageBox::warning(this, tr("Erreur"), exporter.errorString());
+	}
+}
+
+void MainWindow::exportAllEncounters()
+{
+	if(!fieldArchive)	return;
+
+	QString oldPath = Config::value("export_path").toString();
+
+	QString dirPath = QFileDialog::getExistingDirectory(this, tr("Exporter"), oldPath);
+	if (dirPath.isNull()) {
+		return;
+	}
+
+	Config::setValue("export_path", dirPath);
+
+	ProgressWidget progress(tr("Export..."), ProgressWidget::Cancel, this);
+
+	EncounterExporter exporter(fieldArchive);
+
+	if (!exporter.toDir(dirPath, &progress) && !progress.observerWasCanceled()) {
+		QMessageBox::warning(this, tr("Erreur"), exporter.errorString());
 	}
 }
 
@@ -686,14 +781,14 @@ void MainWindow::importCurrent()
 {
     if(!currentField)	return;
 
-    QString path = fieldArchive != NULL ? fieldArchive->archivePath() : field->path();
+	QString path = fieldArchive != nullptr ? fieldArchive->archivePath() : field->path();
     QStringList filter;
     QList<int> typeList;
 
     for(int i=0 ; i<FILE_COUNT ; ++i) {
         if(i != Field::Background && i != Field::Jsm) {
-            if(currentField->hasFile((Field::FileType)i)) {
-                filter.append(currentField->getFile((Field::FileType)i)->filterText());
+			if(currentField->hasFile(Field::FileType(i))) {
+				filter.append(currentField->getFile(Field::FileType(i))->filterText());
                 typeList.append(i);
             }
         }
@@ -708,8 +803,8 @@ void MainWindow::importCurrent()
     path = QFileDialog::getSaveFileName(this, tr("Importer"), path, filter.join(";;"), &selectedFilter);
     if(path.isNull())		return;
 
-    if(!currentField->getFile((Field::FileType)typeList.at(filter.indexOf(selectedFilter)))->fromFile(path)) {
-        QMessageBox::warning(this, tr("Erreur"), currentField->getFile((Field::FileType)typeList.at(filter.indexOf(selectedFilter)))->errorString());
+	if(!currentField->getFile(Field::FileType(typeList.at(filter.indexOf(selectedFilter))))->fromFile(path)) {
+		QMessageBox::warning(this, tr("Erreur"), currentField->getFile(Field::FileType(typeList.at(filter.indexOf(selectedFilter))))->errorString());
     }
 }
 
@@ -742,7 +837,7 @@ void MainWindow::search()
 
 void MainWindow::varManager()
 {
-	if(_varManager == NULL)
+	if(_varManager == nullptr)
 		_varManager = new VarManager(fieldArchive, this);
 	_varManager->show();
 	_varManager->raise();
@@ -864,7 +959,7 @@ void MainWindow::gotoScript(int fieldID, int groupID, int methodID, int opcodeID
 void MainWindow::about()
 {
 	QDialog about(this, Qt::Dialog | Qt::CustomizeWindowHint);
-	about.setFixedSize(200,270);
+	about.setFixedSize(200,300);
 
 	QFont font;
 	font.setPointSize(12);
@@ -880,7 +975,7 @@ void MainWindow::about()
 
 	font.setPointSize(8);
 
-	QLabel desc2(tr("Par myst6re<br/><a href=\"https://sourceforge.net/projects/deling/\">sourceforge.net/projects/deling</a><br/><br/>Merci à :<ul style=\"margin:0\"><li>Aali</li><li>Aladore384</li><li>Asa</li></ul>"), &about);
+	QLabel desc2(tr("Par myst6re<br/><a href=\"https://github.com/myst6re/deling/\">github.com/myst6re/deling</a><br/><br/>Merci à :<ul style=\"margin:0\"><li>Aali</li><li>Aladore384</li><li>Asa</li><li>Maki</li><li>kruci</li></ul>"), &about);
 	desc2.setTextInteractionFlags(Qt::LinksAccessibleByMouse | Qt::LinksAccessibleByKeyboard);
 	desc2.setTextFormat(Qt::RichText);
 	desc2.setOpenExternalLinks(true);
