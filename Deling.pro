@@ -22,6 +22,8 @@ lessThan(QT_MAJOR_VERSION, 5) {
 HEADERS += MainWindow.h \
     EncounterExporter.h \
     PreviewWidget.h \
+    game/worldmap/TexlFile.h \
+    game/worldmap/WmArchive.h \
     game/worldmap/WmEncounter.h \
     QLZ4.h \
     ScriptExporter.h \
@@ -123,6 +125,8 @@ HEADERS += MainWindow.h \
 SOURCES += MainWindow.cpp \
     EncounterExporter.cpp \
     PreviewWidget.cpp \
+    game/worldmap/TexlFile.cpp \
+    game/worldmap/WmArchive.cpp \
     game/worldmap/WmEncounter.cpp \
     QLZ4.cpp \
     ScriptExporter.cpp \
