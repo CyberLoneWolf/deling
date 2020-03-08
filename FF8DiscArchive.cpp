@@ -174,7 +174,7 @@ bool FF8DiscArchive::extractGZ(const FF8DiscFile &file, const QString &destinati
 const QList<FF8DiscFile> &FF8DiscArchive::rootDirectory()
 {
 	if(!rootFiles.isEmpty() || !IMGFound())		return rootFiles;
-	searchFiles();
+	//searchFiles();
 
 	quint32 position, size, numSectors = sizeIMG / SECTOR_SIZE_DATA;
 	qint64 maxPos;
@@ -230,6 +230,14 @@ int FF8DiscArchive::rootCount()
 const FF8DiscFile &FF8DiscArchive::rootFile(int id)
 {
 	return rootDirectory().at(id);
+}
+
+const FF8DiscFile &FF8DiscArchive::sysFntTdwFile()
+{
+	if (isDemo()) {
+		return rootFile(isJp() ? 9 : 8);
+	}
+	return rootFile(129);
 }
 
 const FF8DiscFile &FF8DiscArchive::fieldBinFile()

@@ -26,15 +26,7 @@
 #include "Search.h"
 #include "BGPreview.h"
 #include "TextPreview.h"
-#include "widgets/MsdWidget.h"
-#include "widgets/JsmWidget.h"
-#include "widgets/CharaWidget.h"
-#include "widgets/WalkmeshWidget.h"
-#include "widgets/BackgroundWidget.h"
-#include "widgets/EncounterWidget.h"
-#include "widgets/TdwWidget.h"
-#include "widgets/SoundWidget.h"
-#include "widgets/MiscWidget.h"
+#include "widgets/PageWidget.h"
 #include "VarManager.h"
 #include "MiscSearch.h"
 #include "FsDialog.h"
@@ -67,6 +59,7 @@ private slots:
 	void exportCurrent();
 	void exportAllScripts();
 	void exportAllEncounters();
+	void exportAllBackground();
 	void importCurrent();
 	void optimizeArchive();
 	void manageArchive();

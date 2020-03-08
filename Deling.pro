@@ -20,6 +20,7 @@ lessThan(QT_MAJOR_VERSION, 5) {
 
 # Input
 HEADERS += MainWindow.h \
+    BackgroundExporter.h \
     EncounterExporter.h \
     PreviewWidget.h \
     game/worldmap/TexlFile.h \
@@ -123,6 +124,7 @@ HEADERS += MainWindow.h \
     game/worldmap/WmsetFile.h
 
 SOURCES += MainWindow.cpp \
+    BackgroundExporter.cpp \
     EncounterExporter.cpp \
     PreviewWidget.cpp \
     game/worldmap/TexlFile.cpp \
